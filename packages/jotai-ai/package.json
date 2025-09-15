@@ -4,15 +4,15 @@
   "type": "module",
   "module": "./dist/index.js",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+    "./legacy": {
+      "types": "./dist/legacy/index.d.ts",
+      "import": "./dist/legacy/index.js",
+      "require": "./dist/legacy/index.cjs"
     },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js",
-      "require": "./dist/react.cjs"
+    "./legacy/react": {
+      "types": "./dist/legacy/react/index.d.ts",
+      "import": "./dist/legacy/react/index.js",
+      "require": "./dist/legacy/react/index.cjs"
     }
   },
   "files": [

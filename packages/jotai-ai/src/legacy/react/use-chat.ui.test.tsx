@@ -22,6 +22,7 @@ import {
   getTextFromDataUrl,
 } from '@ai-sdk/ui-utils';
 import { Provider, createStore, useSetAtom } from 'jotai';
+
 import { useChat, inputAtom, chatIdAtom, messagesAtom } from './use-chat';
 
 const server = createTestServer({

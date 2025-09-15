@@ -10,5 +10,6 @@ export default defineConfig({
       'src/**/*.ui.test.tsx',
       // 'tests/**/*.?(c|m)[jt]s?(x)',
     ],
+    exclude: ['node_modules', 'dist', 'src/legacy/'],
   },
 });

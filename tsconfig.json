@@ -19,7 +19,7 @@
   },
   "references": [
     {
-      "path": "./examples/llamaindex-straming"
+      "path": "./examples/nextjs-streaming"
     },
     {
       "path": "./packages/jotai-ai"
