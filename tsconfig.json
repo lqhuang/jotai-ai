@@ -1,29 +1,53 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "strict": true,
-    "target": "ESNext",
-    "downlevelIteration": true,
-    "esModuleInterop": true,
-    "module": "NodeNext",
-    "skipLibCheck": true,
-    "verbatimModuleSyntax": true,
+    /**
+     * Type Checking
+     */
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noUncheckedIndexedAccess": true,
-    "jsx": "react-jsx",
-    "baseUrl": ".",
-    "declaration": true,
+    "strictNullChecks": true,
+    "strict": true,
+    /**
+     * Modules
+     */
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "noUncheckedSideEffectImports": true,
+    "resolvePackageJsonExports": true,
+    /**
+     * Emit
+     */
     "emitDeclarationOnly": true,
+    "declaration": true,
+    "noEmit": true,
+    /**
+     * Interop Constraints
+     */
+    "downlevelIteration": true,
+    "esModuleInterop": true,
+    /**
+     * Language and Environment
+     */
+    "jsx": "react-jsx",
+    "moduleDetection": "force",
+    "target": "ESNext",
+    /**
+     * Projects
+     */
     "composite": true,
-    "incremental": true
+    "incremental": true,
+    /**
+     * Completeness
+     */
+    "skipDefaultLibCheck": true,
+    "skipLibCheck": true
   },
+  "files": [],
   "references": [
-    {
-      "path": "./examples/nextjs-streaming"
-    },
-    {
-      "path": "./packages/jotai-ai"
-    }
+    { "path": "./examples/nextjs-streaming" },
+    { "path": "./packages/jotai-ai" }
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules/", "dist/"]
 }

@@ -3,14 +3,17 @@
   "type": "module",
   "author": "himself65 <himself65@outlook.com>",
   "license": "MIT",
-  "packageManager": "pnpm@10.13.1",
+  "packageManager": "pnpm@10.16.1",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "build": "pnpm -r build",
-    "lint": "prettier -c ."
+    "lint": "prettier -c .",
+    "clean": "rm -rf ./node_modules && pnpm -r clean"
   },
   "devDependencies": {
-    "@types/react": "18.3.12",
-    "prettier": "^3.3.3",
-    "typescript": "5.6.3"
+    "prettier": "^3.6.2",
+    "typescript": "5.9.2"
   }
 }

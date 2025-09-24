@@ -6,10 +6,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    includeSource: [
-      'src/**/*.ui.test.tsx',
-      // 'tests/**/*.?(c|m)[jt]s?(x)',
-    ],
+    includeSource: ['src/**/*.test.tsx', 'tests/**/*.ui.test.tsx'],
     exclude: ['node_modules', 'dist', 'src/legacy/'],
   },
 });

@@ -4,3 +4,9 @@ packages:
 
 onlyBuiltDependencies:
   - '@swc/core'
+  - esbuild
+  - msw
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
