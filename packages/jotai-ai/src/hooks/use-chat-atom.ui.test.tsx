@@ -502,31 +502,32 @@ describe('text stream', () => {
     );
   });
 
-  // FIXME: ?????
-  // it('should have stable message ids', async () => {
-  //   const controller = new TestResponseController();
+  it('should have stable message ids', async () => {
+    const controller = new TestResponseController();
 
-  //   server.urls['/api/chat'].response = {
-  //     type: 'controlled-stream',
-  //     controller,
-  //   };
+    server.urls['/api/chat'].response = {
+      type: 'controlled-stream',
+      controller,
+    };
 
-  //   await userEvent.click(screen.getByTestId('do-send'));
+    await userEvent.click(screen.getByTestId('do-send'));
 
-  //   controller.write('He');
+    controller.write('He');
 
-  //   await screen.findByTestId('message-1-content');
-  //   expect(screen.getByTestId('message-1-content')).toHaveTextContent('He');
+    await screen.findByTestId('message-1-content');
+    await waitFor(() => {
+      expect(screen.getByTestId('message-1-content')).toHaveTextContent('He');
+    });
 
-  //   const id = screen.getByTestId('message-1-id').textContent;
+    const id = screen.getByTestId('message-1-id').textContent;
 
-  //   controller.write('llo');
-  //   controller.close();
+    controller.write('llo');
+    controller.close();
 
-  //   await screen.findByTestId('message-1-content');
-  //   expect(screen.getByTestId('message-1-content')).toHaveTextContent('Hello');
-  //   expect(screen.getByTestId('message-1-id').textContent).toBe(id);
-  // });
+    await screen.findByTestId('message-1-content');
+    expect(screen.getByTestId('message-1-content')).toHaveTextContent('Hello');
+    expect(screen.getByTestId('message-1-id').textContent).toBe(id);
+  });
 
   it('should invoke onFinish when the stream finishes', async () => {
     server.urls['/api/chat'].response = {
@@ -1840,7 +1841,7 @@ describe('test sending additional fields during message submission', () => {
 
   const { chatAtom } = atomWithChat(
     () =>
-      // @ts-expect-error will fix later
+      // @ts-expect-error FIXME: will fix type hint later
       new Chat<Message>({
         generateId: mockId(),
       }),
