@@ -5,8 +5,8 @@
  * https://github.com/vercel/ai/blob/55e094b8b85581b284fe8e55557542489ff4c2eb/packages/react/src/use-chat.ui.test.tsx
  */
 
-import type { ReactNode, ComponentType, PropsWithChildren } from 'react';
-import type { UIMessage, UIMessageChunk, ChatStatus } from 'ai';
+import type { ReactNode, ComponentType } from 'react';
+import type { UIMessage, UIMessageChunk } from 'ai';
 
 import '@testing-library/jest-dom/vitest'; // setup Chai-style assertions
 import { screen, waitFor } from '@testing-library/react';
@@ -15,30 +15,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { cleanup, render } from '@testing-library/react';
 
-import { act, useRef, useState, useMemo, useEffect } from 'react';
+import { act, useRef, useState } from 'react';
 import {
   DefaultChatTransport,
   isToolUIPart,
   TextStreamChatTransport,
 } from 'ai';
 import { SWRConfig } from 'swr';
-import { Chat, useChat } from '@ai-sdk/react';
+import { Chat } from '@ai-sdk/react';
 import { mockId } from '@ai-sdk/provider-utils/test';
 import {
   createTestServer,
   TestResponseController,
 } from '@ai-sdk/test-server/with-vitest';
-import {
-  atom,
-  Provider,
-  useAtomValue,
-  createStore,
-  useAtom,
-  useSetAtom,
-} from 'jotai';
+import { atom, Provider, createStore, useAtom, useSetAtom } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 
-import { useChatAtom } from './use-chat-atom';
+import { useChatAtomValue } from './use-chat-atom';
 import { atomWithChat } from '../atom-with-chat';
 
 //
@@ -54,13 +47,14 @@ const server = createTestServer({
   '/api/chat/123/stream': {},
 });
 
-const setupTestComponent = ({
-  TestComponent,
-  init,
-}: {
-  TestComponent: ComponentType<any>;
-  init: ((TestComponent: ComponentType<any>) => ReactNode) | undefined;
-}) => {
+const setupTestComponent = (
+  TestComponent: ComponentType<any>,
+  {
+    init,
+  }: {
+    init?: ((TestComponent: ComponentType<any>) => ReactNode) | undefined;
+  } = {},
+) => {
   beforeEach(() => {
     const store = createStore();
 
@@ -93,9 +87,9 @@ describe('initial messages', () => {
     });
   });
 
-  setupTestComponent({
-    TestComponent: () => {
-      const { messages, status, id: idKey } = useChatAtom(chatAtom);
+  setupTestComponent(
+    () => {
+      const { messages, status, id: idKey } = useChatAtomValue(chatAtom);
       return (
         <div>
           <div data-testid="id">{idKey}</div>
@@ -104,8 +98,8 @@ describe('initial messages', () => {
         </div>
       );
     },
-    init: TestComponent => <TestComponent />,
-  });
+    { init: TestComponent => <TestComponent /> },
+  );
 
   it('should show initial messages', async () => {
     await waitFor(() => {
@@ -132,12 +126,13 @@ describe('data protocol stream', () => {
     });
   });
 
-  setupTestComponent({
-    TestComponent: ({ id: idParam }: { id: string }) => {
+  setupTestComponent(
+    ({ id: idParam }: { id: string }) => {
       useHydrateAtoms([[idAtom, idParam]]);
 
       const [idKey, setId] = useAtom(idAtom);
-      const { messages, sendMessage, error, status } = useChatAtom(chatAtom);
+      const { messages, sendMessage, error, status } =
+        useChatAtomValue(chatAtom);
 
       return (
         <div>
@@ -160,8 +155,8 @@ describe('data protocol stream', () => {
         </div>
       );
     },
-    init: TestComponent => <TestComponent id={`first-${mockId()()}`} />,
-  });
+    { init: TestComponent => <TestComponent id={`first-${mockId()()}`} /> },
+  );
 
   beforeEach(() => {
     onFinishCalls = [];
@@ -435,6 +430,2015 @@ describe('data protocol stream', () => {
           "trigger": "submit-message",
         }
       `);
+    });
+  });
+});
+
+describe('text stream', () => {
+  let onFinishCalls: Array<{ message: UIMessage }> = [];
+
+  const { chatAtom } = atomWithChat(() => {
+    return new Chat<UIMessage>({
+      onFinish: options => {
+        onFinishCalls.push(options);
+      },
+      generateId: mockId(),
+      transport: new TextStreamChatTransport({
+        api: '/api/chat',
+      }),
+    });
+  });
+
+  setupTestComponent(() => {
+    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        {messages.map((m, idx) => (
+          <div data-testid={`message-${idx}-text-stream`} key={m.id}>
+            <div data-testid={`message-${idx}-id`}>{m.id}</div>
+            <div data-testid={`message-${idx}-role`}>
+              {m.role === 'user' ? 'User: ' : 'AI: '}
+            </div>
+            <div data-testid={`message-${idx}-content`}>
+              {m.parts
+                .map(part => (part.type === 'text' ? part.text : ''))
+                .join('')}
+            </div>
+          </div>
+        ))}
+
+        <button
+          data-testid="do-send"
+          onClick={() => {
+            sendMessage({
+              role: 'user',
+              parts: [{ text: 'hi', type: 'text' }],
+            });
+          }}
+        />
+      </div>
+    );
+  });
+
+  beforeEach(() => {
+    onFinishCalls = [];
+  });
+
+  it('should show streamed response', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: ['Hello', ',', ' world', '.'],
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    await screen.findByTestId('message-0-content');
+    expect(screen.getByTestId('message-0-content')).toHaveTextContent('hi');
+
+    await screen.findByTestId('message-1-content');
+    expect(screen.getByTestId('message-1-content')).toHaveTextContent(
+      'Hello, world.',
+    );
+  });
+
+  // FIXME: ?????
+  // it('should have stable message ids', async () => {
+  //   const controller = new TestResponseController();
+
+  //   server.urls['/api/chat'].response = {
+  //     type: 'controlled-stream',
+  //     controller,
+  //   };
+
+  //   await userEvent.click(screen.getByTestId('do-send'));
+
+  //   controller.write('He');
+
+  //   await screen.findByTestId('message-1-content');
+  //   expect(screen.getByTestId('message-1-content')).toHaveTextContent('He');
+
+  //   const id = screen.getByTestId('message-1-id').textContent;
+
+  //   controller.write('llo');
+  //   controller.close();
+
+  //   await screen.findByTestId('message-1-content');
+  //   expect(screen.getByTestId('message-1-content')).toHaveTextContent('Hello');
+  //   expect(screen.getByTestId('message-1-id').textContent).toBe(id);
+  // });
+
+  it('should invoke onFinish when the stream finishes', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: ['Hello', ',', ' world', '.'],
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    await screen.findByTestId('message-1-text-stream');
+
+    expect(onFinishCalls).toMatchInlineSnapshot(`
+      [
+        {
+          "isAbort": false,
+          "isDisconnect": false,
+          "isError": false,
+          "message": {
+            "id": "id-2",
+            "metadata": undefined,
+            "parts": [
+              {
+                "type": "step-start",
+              },
+              {
+                "providerMetadata": undefined,
+                "state": "done",
+                "text": "Hello, world.",
+                "type": "text",
+              },
+            ],
+            "role": "assistant",
+          },
+          "messages": [
+            {
+              "id": "id-1",
+              "metadata": undefined,
+              "parts": [
+                {
+                  "text": "hi",
+                  "type": "text",
+                },
+              ],
+              "role": "user",
+            },
+            {
+              "id": "id-2",
+              "metadata": undefined,
+              "parts": [
+                {
+                  "type": "step-start",
+                },
+                {
+                  "providerMetadata": undefined,
+                  "state": "done",
+                  "text": "Hello, world.",
+                  "type": "text",
+                },
+              ],
+              "role": "assistant",
+            },
+          ],
+        },
+      ]
+    `);
+  });
+});
+
+describe('prepareChatRequest', () => {
+  let options: any;
+
+  const { chatAtom } = atomWithChat(
+    () =>
+      new Chat<UIMessage>({
+        transport: new DefaultChatTransport({
+          body: { 'body-key': 'body-value' },
+          headers: { 'header-key': 'header-value' },
+          prepareSendMessagesRequest(optionsArg) {
+            options = optionsArg;
+            return {
+              body: { 'request-body-key': 'request-body-value' },
+              headers: { 'header-key': 'header-value' },
+            };
+          },
+        }),
+        generateId: mockId(),
+      }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, sendMessage, status } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        <div data-testid="status">{status.toString()}</div>
+        {messages.map((m, idx) => (
+          <div data-testid={`message-${idx}`} key={m.id}>
+            {m.role === 'user' ? 'User: ' : 'AI: '}
+            {m.parts
+              .map(part => (part.type === 'text' ? part.text : ''))
+              .join('')}
+          </div>
+        ))}
+
+        <button
+          data-testid="do-send"
+          onClick={() => {
+            sendMessage(
+              {
+                parts: [{ text: 'hi', type: 'text' }],
+              },
+              {
+                body: { 'request-body-key': 'request-body-value' },
+                headers: { 'request-header-key': 'request-header-value' },
+                metadata: { 'request-metadata-key': 'request-metadata-value' },
+              },
+            );
+          }}
+        />
+      </div>
+    );
+  });
+
+  afterEach(() => {
+    options = undefined;
+  });
+
+  it('should show streamed response', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({ type: 'text-start', id: '0' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: 'Hello' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: ',' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: ' world' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: '.' }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    await screen.findByTestId('message-0');
+    expect(screen.getByTestId('message-0')).toHaveTextContent('User: hi');
+
+    expect(options).toMatchInlineSnapshot(`
+      {
+        "api": "/api/chat",
+        "body": {
+          "body-key": "body-value",
+          "request-body-key": "request-body-value",
+        },
+        "credentials": undefined,
+        "headers": {
+          "header-key": "header-value",
+          "request-header-key": "request-header-value",
+        },
+        "id": "id-0",
+        "messageId": undefined,
+        "messages": [
+          {
+            "id": "id-1",
+            "metadata": undefined,
+            "parts": [
+              {
+                "text": "hi",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "requestMetadata": {
+          "request-metadata-key": "request-metadata-value",
+        },
+        "trigger": "submit-message",
+      }
+    `);
+
+    expect(await server.calls[0]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "request-body-key": "request-body-value",
+      }
+    `);
+    expect(server.calls[0]!.requestHeaders).toMatchInlineSnapshot(`
+      {
+        "content-type": "application/json",
+        "header-key": "header-value",
+      }
+    `);
+
+    await screen.findByTestId('message-1');
+    expect(screen.getByTestId('message-1')).toHaveTextContent(
+      'AI: Hello, world.',
+    );
+  });
+});
+
+//
+// FIXME: recursive `addToolResult` ?????
+//
+// describe('onToolCall', () => {
+//   let resolve: () => void;
+//   let toolCallPromise: Promise<void>;
+
+//   const { chatAtom } = atomWithChat(
+//     () =>
+//       new Chat({
+//         onToolCall: async ({ toolCall }) => {
+//           addToolResult({
+//             tool: 'test-tool',
+//             toolCallId: toolCall.toolCallId,
+//             output: `test-tool-response: ${toolCall.toolName} ${
+//               toolCall.toolCallId
+//             } ${JSON.stringify(toolCall.input)}`,
+//           });
+//         },
+//       }),
+//   );
+
+//   setupTestComponent(() => {
+//     const { messages, sendMessage, addToolResult } = useChatAtom(chatAtom, {
+//       async onToolCall({ toolCall }) {
+//         await toolCallPromise;
+//         addToolResult({
+//           tool: 'test-tool',
+//           toolCallId: toolCall.toolCallId,
+//           output: `test-tool-response: ${toolCall.toolName} ${
+//             toolCall.toolCallId
+//           } ${JSON.stringify(toolCall.input)}`,
+//         });
+//       },
+//     });
+
+//     return (
+//       <div>
+//         {messages.map((m, idx) => (
+//           <div data-testid={`message-${idx}`} key={m.id}>
+//             {m.parts.filter(isToolUIPart).map((toolPart, toolIdx) => (
+//               <div key={toolIdx} data-testid={`tool-${toolIdx}`}>
+//                 {JSON.stringify(toolPart)}
+//               </div>
+//             ))}
+//           </div>
+//         ))}
+
+//         <button
+//           data-testid="do-send"
+//           onClick={() => {
+//             sendMessage({
+//               parts: [{ text: 'hi', type: 'text' }],
+//             });
+//           }}
+//         />
+//       </div>
+//     );
+//   });
+
+//   beforeEach(() => {
+//     toolCallPromise = new Promise(resolveArg => {
+//       resolve = resolveArg;
+//     });
+//   });
+
+//   it("should invoke onToolCall when a tool call is received from the server's response", async () => {
+//     server.urls['/api/chat'].response = {
+//       type: 'stream-chunks',
+//       chunks: [
+//         formatChunk({
+//           type: 'tool-input-available',
+//           toolCallId: 'tool-call-0',
+//           toolName: 'test-tool',
+//           input: { testArg: 'test-value' },
+//         }),
+//       ],
+//     };
+
+//     await userEvent.click(screen.getByTestId('do-send'));
+
+//     await screen.findByTestId('message-1');
+//     expect(
+//       JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+//     ).toStrictEqual({
+//       state: 'input-available',
+//       input: { testArg: 'test-value' },
+//       toolCallId: 'tool-call-0',
+//       type: 'tool-test-tool',
+//     });
+
+//     resolve();
+
+//     await waitFor(() => {
+//       expect(
+//         JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+//       ).toStrictEqual({
+//         state: 'output-available',
+//         input: { testArg: 'test-value' },
+//         toolCallId: 'tool-call-0',
+//         type: 'tool-test-tool',
+//         output:
+//           'test-tool-response: test-tool tool-call-0 {"testArg":"test-value"}',
+//       });
+//     });
+//   });
+// });
+
+describe('tool invocations', () => {
+  const { chatAtom } = atomWithChat(
+    () =>
+      new Chat<UIMessage>({
+        generateId: mockId(),
+      }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, sendMessage, addToolResult } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        {messages.map((m, idx) => (
+          <div data-testid={`message-${idx}`} key={m.id}>
+            {m.parts.filter(isToolUIPart).map((toolPart, toolIdx) => {
+              return (
+                <div key={toolIdx}>
+                  <div data-testid={`tool-invocation-${toolIdx}`}>
+                    {JSON.stringify(toolPart)}
+                  </div>
+                  {toolPart.state === 'input-available' && (
+                    <button
+                      data-testid={`add-result-${toolIdx}`}
+                      onClick={() => {
+                        addToolResult({
+                          tool: 'test-tool',
+                          toolCallId: toolPart.toolCallId,
+                          output: 'test-result',
+                        });
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            {m.role === 'assistant' && (
+              <div data-testid={`message-${idx}-text`}>
+                {m.parts
+                  .map(part => (part.type === 'text' ? part.text : ''))
+                  .join('')}
+              </div>
+            )}
+          </div>
+        ))}
+
+        <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+
+        <button
+          data-testid="do-send"
+          onClick={() => {
+            sendMessage({
+              parts: [{ text: 'hi', type: 'text' }],
+            });
+          }}
+        />
+      </div>
+    );
+  });
+
+  it('should display partial tool call, tool call, and tool result', async () => {
+    const controller = new TestResponseController();
+
+    server.urls['/api/chat'].response = {
+      type: 'controlled-stream',
+      controller,
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    controller.write(
+      formatChunk({
+        type: 'tool-input-start',
+        toolCallId: 'tool-call-0',
+        toolName: 'test-tool',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'input-streaming',
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+      });
+    });
+
+    controller.write(
+      formatChunk({
+        type: 'tool-input-delta',
+        toolCallId: 'tool-call-0',
+        inputTextDelta: '{"testArg":"t',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'input-streaming',
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+        input: { testArg: 't' },
+      });
+    });
+
+    controller.write(
+      formatChunk({
+        type: 'tool-input-delta',
+        toolCallId: 'tool-call-0',
+        inputTextDelta: 'est-value"}}',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'input-streaming',
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+        input: { testArg: 'test-value' },
+      });
+    });
+
+    controller.write(
+      formatChunk({
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-0',
+        toolName: 'test-tool',
+        input: { testArg: 'test-value' },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'input-available',
+        input: { testArg: 'test-value' },
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+      });
+    });
+
+    controller.write(
+      formatChunk({
+        type: 'tool-output-available',
+        toolCallId: 'tool-call-0',
+        output: 'test-result',
+      }),
+    );
+    controller.close();
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'output-available',
+        input: { testArg: 'test-value' },
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+        output: 'test-result',
+      });
+    });
+  });
+
+  it('should display tool call and tool result (when there is no tool call streaming)', async () => {
+    const controller = new TestResponseController();
+    server.urls['/api/chat'].response = {
+      type: 'controlled-stream',
+      controller,
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    controller.write(
+      formatChunk({
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-0',
+        toolName: 'test-tool',
+        input: { testArg: 'test-value' },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'input-available',
+        input: { testArg: 'test-value' },
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+      });
+    });
+
+    controller.write(
+      formatChunk({
+        type: 'tool-output-available',
+        toolCallId: 'tool-call-0',
+        output: 'test-result',
+      }),
+    );
+    controller.close();
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'output-available',
+        input: { testArg: 'test-value' },
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+        output: 'test-result',
+      });
+    });
+  });
+
+  it('should update tool call to result when addToolResult is called', async () => {
+    const controller = new TestResponseController();
+    server.urls['/api/chat'].response = {
+      type: 'controlled-stream',
+      controller,
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    controller.write(formatChunk({ type: 'start' }));
+    controller.write(formatChunk({ type: 'start-step' }));
+    controller.write(
+      formatChunk({
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-0',
+        toolName: 'test-tool',
+        input: { testArg: 'test-value' },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'input-available',
+        input: { testArg: 'test-value' },
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+      });
+    });
+
+    await userEvent.click(screen.getByTestId('add-result-0'));
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('message-1').textContent ?? ''),
+      ).toStrictEqual({
+        state: 'output-available',
+        input: { testArg: 'test-value' },
+        toolCallId: 'tool-call-0',
+        type: 'tool-test-tool',
+        output: 'test-result',
+      });
+    });
+
+    controller.write(formatChunk({ type: 'text-start', id: '0' }));
+    controller.write(
+      formatChunk({
+        type: 'text-delta',
+        id: '0',
+        delta: 'more text',
+      }),
+    );
+    controller.write(formatChunk({ type: 'text-end', id: '0' }));
+    controller.close();
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          id: 'id-1',
+          parts: [
+            {
+              text: 'hi',
+              type: 'text',
+            },
+          ],
+          role: 'user',
+        },
+        {
+          id: 'id-2',
+          parts: [
+            {
+              type: 'step-start',
+            },
+            {
+              type: 'tool-test-tool',
+              toolCallId: 'tool-call-0',
+              input: { testArg: 'test-value' },
+              output: 'test-result',
+              state: 'output-available',
+            },
+            {
+              text: 'more text',
+              type: 'text',
+              state: 'done',
+            },
+          ],
+          role: 'assistant',
+        },
+      ]);
+    });
+  });
+});
+
+describe('file attachments with data url', () => {
+  const { chatAtom } = atomWithChat(
+    () => new Chat<UIMessage>({ generateId: mockId() }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, status, sendMessage } = useChatAtomValue(chatAtom);
+
+    const [files, setFiles] = useState<FileList | undefined>(undefined);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [input, setInput] = useState('');
+
+    return (
+      <div>
+        <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+
+        <form
+          onSubmit={() => {
+            sendMessage({ text: input, files });
+            setFiles(undefined);
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+          }}
+          data-testid="chat-form"
+        >
+          <input
+            type="file"
+            onChange={event => {
+              if (event.target.files) {
+                setFiles(event.target.files);
+              }
+            }}
+            multiple
+            ref={fileInputRef}
+            data-testid="file-input"
+          />
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            disabled={status !== 'ready'}
+            data-testid="message-input"
+          />
+          <button type="submit" data-testid="submit-button">
+            Send
+          </button>
+        </form>
+      </div>
+    );
+  });
+
+  it('should handle text file attachment and submission', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({
+          type: 'text-start',
+          id: '0',
+        }),
+        formatChunk({
+          type: 'text-delta',
+          id: '0',
+          delta: 'Response to message with text attachment',
+        }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    const file = new File(['test file content'], 'test.txt', {
+      type: 'text/plain',
+    });
+
+    const fileInput = screen.getByTestId('file-input');
+    await userEvent.upload(fileInput, file);
+
+    const messageInput = screen.getByTestId('message-input');
+    await userEvent.type(messageInput, 'Message with text attachment');
+
+    const submitButton = screen.getByTestId('submit-button');
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          id: 'id-1',
+          role: 'user',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'text/plain',
+              filename: 'test.txt',
+              url: 'data:text/plain;base64,dGVzdCBmaWxlIGNvbnRlbnQ=',
+            },
+            {
+              type: 'text',
+              text: 'Message with text attachment',
+            },
+          ],
+        },
+        {
+          id: 'id-2',
+          parts: [
+            {
+              text: 'Response to message with text attachment',
+              type: 'text',
+              state: 'done',
+            },
+          ],
+          role: 'assistant',
+        },
+      ]);
+    });
+
+    expect(await server.calls[0]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "id": "id-0",
+        "messages": [
+          {
+            "id": "id-1",
+            "parts": [
+              {
+                "filename": "test.txt",
+                "mediaType": "text/plain",
+                "type": "file",
+                "url": "data:text/plain;base64,dGVzdCBmaWxlIGNvbnRlbnQ=",
+              },
+              {
+                "text": "Message with text attachment",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "trigger": "submit-message",
+      }
+    `);
+  });
+
+  it('should handle image file attachment and submission', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({
+          type: 'text-start',
+          id: '0',
+        }),
+        formatChunk({
+          type: 'text-delta',
+          id: '0',
+          delta: 'Response to message with image attachment',
+        }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    const file = new File(['test image content'], 'test.png', {
+      type: 'image/png',
+    });
+
+    const fileInput = screen.getByTestId('file-input');
+    await userEvent.upload(fileInput, file);
+
+    const messageInput = screen.getByTestId('message-input');
+    await userEvent.type(messageInput, 'Message with image attachment');
+
+    const submitButton = screen.getByTestId('submit-button');
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          role: 'user',
+          id: 'id-1',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              filename: 'test.png',
+              url: 'data:image/png;base64,dGVzdCBpbWFnZSBjb250ZW50',
+            },
+            {
+              type: 'text',
+              text: 'Message with image attachment',
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          id: 'id-2',
+          parts: [
+            {
+              type: 'text',
+              text: 'Response to message with image attachment',
+              state: 'done',
+            },
+          ],
+        },
+      ]);
+    });
+
+    expect(await server.calls[0]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "id": "id-0",
+        "messages": [
+          {
+            "id": "id-1",
+            "parts": [
+              {
+                "filename": "test.png",
+                "mediaType": "image/png",
+                "type": "file",
+                "url": "data:image/png;base64,dGVzdCBpbWFnZSBjb250ZW50",
+              },
+              {
+                "text": "Message with image attachment",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "trigger": "submit-message",
+      }
+    `);
+  });
+});
+
+describe('file attachments with url', () => {
+  const { chatAtom } = atomWithChat(
+    () => new Chat<UIMessage>({ generateId: mockId() }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, sendMessage, status } = useChatAtomValue(chatAtom);
+
+    const [input, setInput] = useState('');
+
+    return (
+      <div>
+        <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+
+        <form
+          onSubmit={() => {
+            sendMessage({
+              text: input,
+              files: [
+                {
+                  type: 'file',
+                  mediaType: 'image/png',
+                  url: 'https://example.com/image.png',
+                },
+              ],
+            });
+          }}
+          data-testid="chat-form"
+        >
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            disabled={status !== 'ready'}
+            data-testid="message-input"
+          />
+          <button type="submit" data-testid="submit-button">
+            Send
+          </button>
+        </form>
+      </div>
+    );
+  });
+
+  it('should handle image file attachment and submission', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({
+          type: 'text-start',
+          id: '0',
+        }),
+        formatChunk({
+          type: 'text-delta',
+          id: '0',
+          delta: 'Response to message with image attachment',
+        }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    const messageInput = screen.getByTestId('message-input');
+    await userEvent.type(messageInput, 'Message with image attachment');
+
+    const submitButton = screen.getByTestId('submit-button');
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          role: 'user',
+          id: 'id-1',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              url: 'https://example.com/image.png',
+            },
+            {
+              type: 'text',
+              text: 'Message with image attachment',
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          id: 'id-2',
+          parts: [
+            {
+              type: 'text',
+              text: 'Response to message with image attachment',
+              state: 'done',
+            },
+          ],
+        },
+      ]);
+    });
+
+    expect(await server.calls[0]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "id": "id-0",
+        "messages": [
+          {
+            "id": "id-1",
+            "parts": [
+              {
+                "mediaType": "image/png",
+                "type": "file",
+                "url": "https://example.com/image.png",
+              },
+              {
+                "text": "Message with image attachment",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "trigger": "submit-message",
+      }
+    `);
+  });
+});
+
+describe('attachments with empty submit', () => {
+  const { chatAtom } = atomWithChat(
+    () => new Chat<UIMessage>({ generateId: mockId() }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+
+        <form
+          onSubmit={() => {
+            sendMessage({
+              files: [
+                {
+                  type: 'file',
+                  filename: 'test.png',
+                  mediaType: 'image/png',
+                  url: 'https://example.com/image.png',
+                },
+              ],
+            });
+          }}
+          data-testid="chat-form"
+        >
+          <button type="submit" data-testid="submit-button">
+            Send
+          </button>
+        </form>
+      </div>
+    );
+  });
+
+  it('should handle image file attachment and submission', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({ type: 'text-start', id: '0' }),
+        formatChunk({
+          type: 'text-delta',
+          id: '0',
+          delta: 'Response to message with image attachment',
+        }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    const submitButton = screen.getByTestId('submit-button');
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          id: 'id-1',
+          role: 'user',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              filename: 'test.png',
+              url: 'https://example.com/image.png',
+            },
+          ],
+        },
+        {
+          id: 'id-2',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'text',
+              text: 'Response to message with image attachment',
+              state: 'done',
+            },
+          ],
+        },
+      ]);
+    });
+
+    expect(await server.calls[0]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "id": "id-0",
+        "messages": [
+          {
+            "id": "id-1",
+            "parts": [
+              {
+                "filename": "test.png",
+                "mediaType": "image/png",
+                "type": "file",
+                "url": "https://example.com/image.png",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "trigger": "submit-message",
+      }
+    `);
+  });
+});
+
+describe('should send message with attachments', () => {
+  const { chatAtom } = atomWithChat(
+    () => new Chat<UIMessage>({ generateId: mockId() }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+
+            sendMessage({
+              parts: [
+                {
+                  type: 'file',
+                  mediaType: 'image/png',
+                  url: 'https://example.com/image.png',
+                },
+                {
+                  type: 'text',
+                  text: 'Message with image attachment',
+                },
+              ],
+            });
+          }}
+          data-testid="chat-form"
+        >
+          <button type="submit" data-testid="submit-button">
+            Send
+          </button>
+        </form>
+      </div>
+    );
+  });
+
+  it('should handle image file attachment and submission', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({ type: 'text-start', id: '0' }),
+        formatChunk({
+          type: 'text-delta',
+          id: '0',
+          delta: 'Response to message with image attachment',
+        }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    const submitButton = screen.getByTestId('submit-button');
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          id: 'id-1',
+          parts: [
+            {
+              mediaType: 'image/png',
+              type: 'file',
+              url: 'https://example.com/image.png',
+            },
+            {
+              text: 'Message with image attachment',
+              type: 'text',
+            },
+          ],
+          role: 'user',
+        },
+        {
+          id: 'id-2',
+          parts: [
+            {
+              state: 'done',
+              text: 'Response to message with image attachment',
+              type: 'text',
+            },
+          ],
+          role: 'assistant',
+        },
+      ]);
+    });
+
+    expect(await server.calls[0]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "id": "id-0",
+        "messages": [
+          {
+            "id": "id-1",
+            "parts": [
+              {
+                "mediaType": "image/png",
+                "type": "file",
+                "url": "https://example.com/image.png",
+              },
+              {
+                "text": "Message with image attachment",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "trigger": "submit-message",
+      }
+    `);
+  });
+});
+
+describe('regenerate', () => {
+  const { chatAtom } = atomWithChat(
+    () => new Chat<UIMessage>({ generateId: mockId() }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, sendMessage, regenerate } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        {messages.map((m, idx) => (
+          <div data-testid={`message-${idx}`} key={m.id}>
+            {m.role === 'user' ? 'User: ' : 'AI: '}
+            {m.parts
+              .map(part => (part.type === 'text' ? part.text : ''))
+              .join('')}
+          </div>
+        ))}
+
+        <button
+          data-testid="do-send"
+          onClick={() => {
+            sendMessage({ parts: [{ text: 'hi', type: 'text' }] });
+          }}
+        />
+
+        <button
+          data-testid="do-regenerate"
+          onClick={() => {
+            regenerate({
+              body: { 'request-body-key': 'request-body-value' },
+              headers: { 'header-key': 'header-value' },
+            });
+          }}
+        />
+      </div>
+    );
+  });
+
+  it('should show streamed response', async () => {
+    server.urls['/api/chat'].response = [
+      {
+        type: 'stream-chunks',
+        chunks: [
+          formatChunk({ type: 'text-start', id: '0' }),
+          formatChunk({
+            type: 'text-delta',
+            id: '0',
+            delta: 'first response',
+          }),
+          formatChunk({ type: 'text-end', id: '0' }),
+        ],
+      },
+      {
+        type: 'stream-chunks',
+        chunks: [
+          formatChunk({ type: 'text-start', id: '0' }),
+          formatChunk({
+            type: 'text-delta',
+            id: '0',
+            delta: 'second response',
+          }),
+          formatChunk({ type: 'text-end', id: '0' }),
+        ],
+      },
+    ];
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    await screen.findByTestId('message-0');
+    expect(screen.getByTestId('message-0')).toHaveTextContent('User: hi');
+
+    await screen.findByTestId('message-1');
+
+    // setup done, click reload:
+    await userEvent.click(screen.getByTestId('do-regenerate'));
+
+    expect(await server.calls[1]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "id": "id-0",
+        "messages": [
+          {
+            "id": "id-1",
+            "parts": [
+              {
+                "text": "hi",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "request-body-key": "request-body-value",
+        "trigger": "regenerate-message",
+      }
+    `);
+
+    expect(server.calls[1]!.requestHeaders).toStrictEqual({
+      'content-type': 'application/json',
+      'header-key': 'header-value',
+    });
+
+    await screen.findByTestId('message-1');
+    expect(screen.getByTestId('message-1')).toHaveTextContent(
+      'AI: second response',
+    );
+  });
+});
+
+describe('test sending additional fields during message submission', () => {
+  type Message = UIMessage<{ test: string }>;
+
+  const { chatAtom } = atomWithChat(
+    () =>
+      // @ts-expect-error will fix later
+      new Chat<Message>({
+        generateId: mockId(),
+      }),
+  );
+
+  setupTestComponent(() => {
+    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        {messages.map((m, idx) => (
+          <div data-testid={`message-${idx}`} key={m.id}>
+            {m.role === 'user' ? 'User: ' : 'AI: '}
+            {m.parts
+              .map(part => (part.type === 'text' ? part.text : ''))
+              .join('')}
+          </div>
+        ))}
+
+        <button
+          data-testid="do-send"
+          onClick={() => {
+            sendMessage({
+              role: 'user',
+              metadata: { test: 'example' },
+              parts: [{ text: 'hi', type: 'text' }],
+            });
+          }}
+        />
+      </div>
+    );
+  });
+
+  it('should send metadata with the message', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({ type: 'text-start', id: '0' }),
+        formatChunk({
+          type: 'text-delta',
+          id: '0',
+          delta: 'first response',
+        }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    await screen.findByTestId('message-0');
+    expect(screen.getByTestId('message-0')).toHaveTextContent('User: hi');
+
+    expect(await server.calls[0]!.requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "id": "id-0",
+        "messages": [
+          {
+            "id": "id-1",
+            "metadata": {
+              "test": "example",
+            },
+            "parts": [
+              {
+                "text": "hi",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ],
+        "trigger": "submit-message",
+      }
+    `);
+  });
+});
+
+// FIXME: Slow than expected
+describe('resume ongoing stream and return assistant message', () => {
+  const controller = new TestResponseController();
+
+  const { chatAtom } = atomWithChat(() => {
+    return new Chat<UIMessage>({
+      id: '123',
+      messages: [
+        {
+          id: 'msg_123',
+          role: 'user',
+          parts: [{ type: 'text', text: 'hi' }],
+        },
+      ],
+      generateId: mockId(),
+    });
+  });
+
+  setupTestComponent(
+    () => {
+      const { messages, status } = useChatAtomValue(chatAtom, {
+        resume: true,
+      });
+
+      return (
+        <div>
+          {messages.map((m, idx) => (
+            <div data-testid={`message-${idx}`} key={m.id}>
+              {m.role === 'user' ? 'User: ' : 'AI: '}
+              {m.parts
+                .map(part => (part.type === 'text' ? part.text : ''))
+                .join('')}
+            </div>
+          ))}
+
+          <div data-testid="status">{status}</div>
+        </div>
+      );
+    },
+    {
+      init: TestComponent => {
+        server.urls['/api/chat/123/stream'].response = {
+          type: 'controlled-stream',
+          controller,
+        };
+
+        return <TestComponent />;
+      },
+    },
+  );
+
+  it('construct messages from resumed stream', async () => {
+    await screen.findByTestId('message-0');
+    expect(screen.getByTestId('message-0')).toHaveTextContent('User: hi');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('submitted');
+    });
+
+    controller.write(formatChunk({ type: 'text-start', id: '0' }));
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: 'Hello' }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('streaming');
+    });
+
+    controller.write(formatChunk({ type: 'text-delta', id: '0', delta: ',' }));
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: ' world' }),
+    );
+    controller.write(formatChunk({ type: 'text-delta', id: '0', delta: '.' }));
+    controller.write(formatChunk({ type: 'text-end', id: '0' }));
+
+    controller.close();
+
+    await screen.findByTestId('message-1');
+    expect(screen.getByTestId('message-1')).toHaveTextContent(
+      'AI: Hello, world.',
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('ready');
+
+      expect(server.calls.length).toBeGreaterThan(0);
+      const mostRecentCall = server.calls[0];
+      // @ts-expect-error test servers
+      const { requestMethod, requestUrl } = mostRecentCall;
+      expect(requestMethod).toBe('GET');
+      expect(requestUrl).toBe('http://localhost:3000/api/chat/123/stream');
+    });
+  });
+});
+
+// FIXME: Why is test time quite long (~343ms, normally 12ms) here?
+describe('stop', () => {
+  const { chatAtom } = atomWithChat(() => {
+    return new Chat<UIMessage>({
+      generateId: mockId(),
+    });
+  });
+
+  setupTestComponent(() => {
+    const { messages, sendMessage, stop, status } = useChatAtomValue(chatAtom);
+
+    return (
+      <div>
+        {messages.map((m, idx) => (
+          <div data-testid={`message-${idx}`} key={m.id}>
+            {m.role === 'user' ? 'User: ' : 'AI: '}
+            {m.parts
+              .map(part => (part.type === 'text' ? part.text : ''))
+              .join('')}
+          </div>
+        ))}
+
+        <button
+          data-testid="do-send"
+          onClick={() => {
+            sendMessage({
+              role: 'user',
+              parts: [{ text: 'hi', type: 'text' }],
+            });
+          }}
+        />
+
+        <button data-testid="do-stop" onClick={stop} />
+
+        <p data-testid="status">{status}</p>
+      </div>
+    );
+  });
+
+  it('should show stop response', async () => {
+    const controller = new TestResponseController();
+
+    server.urls['/api/chat'].response = {
+      type: 'controlled-stream',
+      controller,
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    controller.write(formatChunk({ type: 'text-start', id: '0' }));
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: 'Hello' }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('message-1')).toHaveTextContent('AI: Hello');
+      expect(screen.getByTestId('status')).toHaveTextContent('streaming');
+    });
+
+    await userEvent.click(screen.getByTestId('do-stop'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('ready');
+    });
+
+    await expect(
+      controller.write(
+        formatChunk({ type: 'text-delta', id: '0', delta: ', world!' }),
+      ),
+    ).rejects.toThrow();
+
+    await expect(controller.close()).rejects.toThrow();
+
+    expect(screen.getByTestId('message-1')).toHaveTextContent('AI: Hello');
+    expect(screen.getByTestId('status')).toHaveTextContent('ready');
+  });
+});
+
+describe('experimental_throttle', () => {
+  const throttleMs = 50;
+
+  const { chatAtom } = atomWithChat(() => {
+    return new Chat<UIMessage>({});
+  });
+
+  setupTestComponent(() => {
+    const { messages, sendMessage, status } = useChatAtomValue(chatAtom, {
+      experimental_throttle: throttleMs,
+    });
+
+    return (
+      <div>
+        <div data-testid="status">{status.toString()}</div>
+        {messages.map((m, idx) => (
+          <div data-testid={`message-${idx}`} key={m.id}>
+            {m.role === 'user' ? 'User: ' : 'AI: '}
+            {m.parts
+              .map(part => (part.type === 'text' ? part.text : ''))
+              .join('')}
+          </div>
+        ))}
+        <button
+          data-testid="do-send"
+          onClick={() => {
+            sendMessage({ parts: [{ text: 'hi', type: 'text' }] });
+          }}
+        />
+      </div>
+    );
+  });
+
+  it('should throttle UI updates when experimental_throttle is set', async () => {
+    const controller = new TestResponseController();
+
+    server.urls['/api/chat'].response = {
+      type: 'controlled-stream',
+      controller,
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+    expect(screen.getByTestId('message-0')).toHaveTextContent('User: hi');
+
+    vi.useFakeTimers();
+
+    controller.write(formatChunk({ type: 'text-start', id: '0' }));
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: 'Hel' }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(throttleMs + 10);
+    });
+
+    expect(screen.getByTestId('message-1')).toHaveTextContent('AI: Hel');
+
+    controller.write(formatChunk({ type: 'text-delta', id: '0', delta: 'lo' }));
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: ' Th' }),
+    );
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: 'ere' }),
+    );
+    controller.write(formatChunk({ type: 'text-end', id: '0' }));
+
+    expect(screen.getByTestId('message-1')).not.toHaveTextContent(
+      'AI: Hello There',
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(throttleMs + 10);
+    });
+
+    expect(screen.getByTestId('message-1')).toHaveTextContent(
+      'AI: Hello There',
+    );
+
+    vi.useRealTimers();
+  });
+});
+
+describe('id changes', () => {
+  const idAtom = atom<string>('initial-id');
+  const { chatAtom } = atomWithChat(get => {
+    return new Chat<UIMessage>({
+      id: get(idAtom),
+      generateId: mockId(),
+    });
+  });
+
+  setupTestComponent(
+    () => {
+      const setId = useSetAtom(idAtom);
+      const {
+        messages,
+        sendMessage,
+        error,
+        status,
+        id: idKey,
+      } = useChatAtomValue(chatAtom);
+
+      return (
+        <div>
+          <div data-testid="id">{idKey}</div>
+          <div data-testid="status">{status.toString()}</div>
+          {error && <div data-testid="error">{error.toString()}</div>}
+          <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+          <button
+            data-testid="do-send"
+            onClick={() => {
+              sendMessage({ parts: [{ text: 'hi', type: 'text' }] });
+            }}
+          />
+          <button
+            data-testid="do-change-id"
+            onClick={() => {
+              setId('second-id');
+            }}
+          />
+        </div>
+      );
+    },
+    {
+      init: TestComponent => <TestComponent />,
+    },
+  );
+
+  it('should update chat instance when the id changes', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({ type: 'text-start', id: '0' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: 'Hello' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: ',' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: ' world' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: '.' }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          id: expect.any(String),
+          parts: [{ text: 'hi', type: 'text' }],
+          role: 'user',
+        },
+        {
+          id: 'id-1',
+          parts: [{ text: 'Hello, world.', type: 'text', state: 'done' }],
+          role: 'assistant',
+        },
+      ]);
+    });
+    await userEvent.click(screen.getByTestId('do-change-id'));
+
+    expect(screen.queryByTestId('message-0')).not.toBeInTheDocument();
+  });
+});
+
+describe('chat instance changes', () => {
+  const chatInstAtom = atom<Chat<UIMessage>>(
+    new Chat({
+      id: 'initial-id',
+      generateId: mockId(),
+    }),
+  );
+
+  const { chatAtom } = atomWithChat(get => get(chatInstAtom));
+
+  setupTestComponent(
+    () => {
+      const setChat = useSetAtom(chatInstAtom);
+
+      const {
+        messages,
+        sendMessage,
+        error,
+        status,
+        id: idKey,
+      } = useChatAtomValue(chatAtom);
+
+      return (
+        <div>
+          <div data-testid="id">{idKey}</div>
+          <div data-testid="status">{status.toString()}</div>
+          {error && <div data-testid="error">{error.toString()}</div>}
+          <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+          <button
+            data-testid="do-send"
+            onClick={() => {
+              sendMessage({ parts: [{ text: 'hi', type: 'text' }] });
+            }}
+          />
+          <button
+            data-testid="do-change-chat"
+            onClick={() => {
+              setChat(new Chat({ id: 'second-id', generateId: mockId() }));
+            }}
+          />
+        </div>
+      );
+    },
+    {
+      init: TestComponent => <TestComponent />,
+    },
+  );
+
+  it('should update chat instance when the id changes', async () => {
+    server.urls['/api/chat'].response = {
+      type: 'stream-chunks',
+      chunks: [
+        formatChunk({ type: 'text-start', id: '0' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: 'Hello' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: ',' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: ' world' }),
+        formatChunk({ type: 'text-delta', id: '0', delta: '.' }),
+        formatChunk({ type: 'text-end', id: '0' }),
+      ],
+    };
+
+    await userEvent.click(screen.getByTestId('do-send'));
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toStrictEqual([
+        {
+          id: expect.any(String),
+          parts: [{ text: 'hi', type: 'text' }],
+          role: 'user',
+        },
+        {
+          id: 'id-1',
+          parts: [{ text: 'Hello, world.', type: 'text', state: 'done' }],
+          role: 'assistant',
+        },
+      ]);
+    });
+    await userEvent.click(screen.getByTestId('do-change-chat'));
+
+    expect(screen.queryByTestId('message-0')).not.toBeInTheDocument();
+  });
+});
+
+describe('streaming with id change from undefined to defined', () => {
+  const idAtom = atom<string | undefined>(undefined);
+  const { chatAtom } = atomWithChat(get => {
+    return new Chat<UIMessage>({
+      id: get(idAtom),
+      generateId: mockId(),
+    });
+  });
+
+  setupTestComponent(
+    () => {
+      const [id, setId] = useAtom(idAtom);
+      const { messages, sendMessage, status } = useChatAtomValue(chatAtom);
+
+      return (
+        <div>
+          <div data-testid="status">{status.toString()}</div>
+          <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
+          <button
+            data-testid="change-id"
+            onClick={() => {
+              setId('chat-123');
+            }}
+          />
+          <button
+            data-testid="send-message"
+            onClick={() => {
+              sendMessage({ parts: [{ text: 'hi', type: 'text' }] });
+            }}
+          />
+        </div>
+      );
+    },
+    {
+      init: TestComponent => <TestComponent />,
+    },
+  );
+
+  it('should handle streaming correctly when id changes from undefined to defined', async () => {
+    const controller = new TestResponseController();
+    server.urls['/api/chat'].response = {
+      type: 'controlled-stream',
+      controller,
+    };
+
+    // First, change the ID from undefined to 'chat-123'
+    await userEvent.click(screen.getByTestId('change-id'));
+
+    // Then send a message
+    await userEvent.click(screen.getByTestId('send-message'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status')).toHaveTextContent('submitted');
+    });
+
+    controller.write(formatChunk({ type: 'text-start', id: '0' }));
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: 'Hello' }),
+    );
+
+    // Verify streaming is working - text should appear immediately
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toContainEqual(
+        expect.objectContaining({
+          role: 'assistant',
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: 'Hello',
+            }),
+          ]),
+        }),
+      );
+    });
+
+    controller.write(formatChunk({ type: 'text-delta', id: '0', delta: ',' }));
+    controller.write(
+      formatChunk({ type: 'text-delta', id: '0', delta: ' world' }),
+    );
+    controller.write(formatChunk({ type: 'text-delta', id: '0', delta: '.' }));
+    controller.write(formatChunk({ type: 'text-end', id: '0' }));
+    controller.close();
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId('messages').textContent ?? ''),
+      ).toContainEqual(
+        expect.objectContaining({
+          role: 'assistant',
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: 'Hello, world.',
+              state: 'done',
+            }),
+          ]),
+        }),
+      );
     });
   });
 });

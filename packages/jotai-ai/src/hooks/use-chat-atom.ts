@@ -29,7 +29,7 @@ export type UseChatHelpers<UI_MESSAGE extends UIMessage> = Omit<
   'setMessages'
 >;
 
-export function useChatAtom<UI_MESSAGE extends UIMessage = UIMessage>(
+export function useChatAtomValue<UI_MESSAGE extends UIMessage = UIMessage>(
   chatAtom: UseChatAtomInput<UI_MESSAGE>,
   options?: UseChatAtomOptions | undefined,
 ): UseChatHelpers<UI_MESSAGE> {
