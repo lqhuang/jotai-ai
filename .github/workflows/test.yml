@@ -3,6 +3,7 @@ name: Test (including both unit tests and UI tests)
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
