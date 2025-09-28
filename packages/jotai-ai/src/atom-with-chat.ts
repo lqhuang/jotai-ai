@@ -1,17 +1,13 @@
-import type { PrimitiveAtom, WritableAtom, Atom, Getter } from 'jotai';
-import type {
-  UIMessage,
-  AbstractChat,
-  ChatInit,
-  ChatStatus,
-  UIDataTypes,
-  UITools,
-} from 'ai';
+import type { WritableAtom, Atom, Getter } from 'jotai';
+import type { UIMessage, AbstractChat, ChatInit, ChatStatus } from 'ai';
 import type { UseChatHelpers } from '@ai-sdk/react';
 
 import { atom } from 'jotai';
 
-export type AtomWithChatOptions<UI_MESSAGE extends UIMessage> = (
+// export interface AbstractReactChat<UI_MESSAGE extends UIMessage>
+//   extends Chat<UI_MESSAGE> {}
+
+export type AtomWithChatRead<UI_MESSAGE extends UIMessage> = (
   get: Getter,
 ) => AbstractChat<UI_MESSAGE>;
 
@@ -46,19 +42,8 @@ export type AtomWithChatResult<UI_MESSAGE extends UIMessage> = {
   chatAtom: ChatAtom<UI_MESSAGE>;
 };
 
-// // overloaded definition 1 with concrete chat instance
-// export function atomWithChat<UI_MESSAGE extends UIMessage>(
-//   read: AtomWithChatOptions<UIMessage>,
-//   chat: AbstractChat<UI_MESSAGE>,
-// ): AtomWithChatResult<UI_MESSAGE>;
-// // overloaded definition 2 with init options
-// export function atomWithChat<UI_MESSAGE extends UIMessage>(
-//   read: AtomWithChatOptions<UIMessage>,
-//   initOptions: AtomWithChatInit<UI_MESSAGE>,
-// ): AtomWithChatResult<UI_MESSAGE>;
-
 export function atomWithChat<UI_MESSAGE extends UIMessage>(
-  read: AtomWithChatOptions<UIMessage>,
+  read: AtomWithChatRead<UIMessage>,
 ): AtomWithChatResult<UI_MESSAGE> {
   const statusAtom = atom<ChatStatus>(get => read(get).status);
   const idAtom = atom<string>(get => read(get).id);
@@ -77,22 +62,24 @@ export function atomWithChat<UI_MESSAGE extends UIMessage>(
   const chatAtom = atom<JotaiChatHelpers<UI_MESSAGE>>(get => {
     const chat = read(get);
 
-    return {
-      // state
-      id: chat.id,
-      status: chat.status,
-      error: chat.error,
-      messages: chat.messages,
-      lastMessage: chat.lastMessage,
+    // return {
+    //   // state
+    //   id: chat.id,
+    //   status: chat.status,
+    //   error: chat.error,
+    //   messages: chat.messages,
+    //   lastMessage: chat.lastMessage,
 
-      // handlers
-      sendMessage: chat.sendMessage,
-      regenerate: chat.regenerate,
-      stop: chat.stop,
-      clearError: chat.clearError,
-      resumeStream: chat.resumeStream,
-      addToolResult: chat.addToolResult,
-    };
+    //   // handlers
+    //   sendMessage: chat.sendMessage,
+    //   regenerate: chat.regenerate,
+    //   stop: chat.stop,
+    //   clearError: chat.clearError,
+    //   resumeStream: chat.resumeStream,
+    //   addToolResult: chat.addToolResult,
+    // };
+
+    return chat;
   });
 
   return {

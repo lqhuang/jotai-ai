@@ -1,3 +1,12 @@
+/**
+ * The AI-SDK's `AbstractChat` is designed to be framework-agnostic, but in specific React framework,
+ * we can leverage React's concurrency renderings and other capabilities to provide a more seamless experience.
+ *
+ * This currently is an experimental API for Jotai "native" LLM integration.
+ *
+ * WARN: Not exported to the public API yet.
+ */
+
 import type { WritableAtom, Atom, Getter } from 'jotai';
 import type { UIMessage, AbstractChat, ChatInit, ChatStatus } from 'ai';
 import type { UseChatHelpers } from '@ai-sdk/react';
@@ -32,17 +41,6 @@ export type AtomWithChatResult<UI_MESSAGE extends UIMessage> = {
   lastMessageAtom: Atom<UI_MESSAGE | undefined>;
   chatAtom: Atom<JotaiChatHelpers<UI_MESSAGE>>;
 };
-
-// // overloaded definition 1 with concrete chat instance
-// export function atomWithChat<UI_MESSAGE extends UIMessage>(
-//   read: AtomWithChatOptions<UIMessage>,
-//   chat: AbstractChat<UI_MESSAGE>,
-// ): AtomWithChatResult<UI_MESSAGE>;
-// // overloaded definition 2 with init options
-// export function atomWithChat<UI_MESSAGE extends UIMessage>(
-//   read: AtomWithChatOptions<UIMessage>,
-//   initOptions: AtomWithChatInit<UI_MESSAGE>,
-// ): AtomWithChatResult<UI_MESSAGE>;
 
 export function atomWithChat<UI_MESSAGE extends UIMessage>(
   read: AtomWithChatOptions<UIMessage>,

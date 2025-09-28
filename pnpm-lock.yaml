@@ -94,6 +94,9 @@ importers:
       '@ai-sdk/react':
         specifier: ^2.0.44
         version: 2.0.44(react@19.1.1)(zod@4.1.8)
+      '@ai-sdk/test-server':
+        specifier: 1.0.0-beta.0
+        version: 1.0.0-beta.0
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -115,6 +118,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.0.2
         version: 5.0.2(vite@7.1.5(@types/node@22.18.3))
+      '@vitest/browser':
+        specifier: ^3.2.4
+        version: 3.2.4(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2))(vite@7.1.5(@types/node@22.18.3))(vitest@3.2.4)
       bunchee:
         specifier: ^6.6.0
         version: 6.6.0(typescript@5.9.2)
@@ -124,12 +130,15 @@ importers:
       msw:
         specifier: ^2.11.2
         version: 2.11.2(@types/node@22.18.3)(typescript@5.9.2)
+      swr:
+        specifier: ^2.3.6
+        version: 2.3.6(react@19.1.1)
       typescript:
         specifier: 5.9.2
         version: 5.9.2
       vitest:
         specifier: ^3.2.4
-        version: 3.2.4(@types/node@22.18.3)(jsdom@27.0.0(postcss@8.5.6))(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2))
+        version: 3.2.4(@types/node@22.18.3)(@vitest/browser@3.2.4)(jsdom@27.0.0(postcss@8.5.6))(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2))
       zod:
         specifier: ^4.1.8
         version: 4.1.8
@@ -180,6 +189,10 @@ packages:
     peerDependenciesMeta:
       zod:
         optional: true
+
+  '@ai-sdk/test-server@1.0.0-beta.0':
+    resolution: {integrity: sha512-p2F6XivJrFysDdQLKwSNBFJ1pnHcFTz4XMr8xHQ4gpR55Vajvi21RUh70vH1vahpyTMNJcZXkwHD9EAanjOjdQ==}
+    engines: {node: '>=18'}
 
   '@ai-sdk/ui-utils@1.2.11':
     resolution: {integrity: sha512-3zcwCc8ezzFlwp3ZD15wAPjf2Au4s3vAbKsXQVyhxODHcmu0iyPO2Eua6D/vicq/AUm/BAo60r97O6HU+EI0+w==}
@@ -808,6 +821,9 @@ packages:
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
 
+  '@polka/url@1.0.0-next.29':
+    resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
   '@rolldown/pluginutils@1.0.0-beta.34':
     resolution: {integrity: sha512-LyAREkZHP5pMom7c24meKmJCdhf2hEyvam2q0unr3or9ydwDL+DJ8chTF6Av/RFPb3rH8UFBdMzO5MxTZW97oA==}
 
@@ -1301,6 +1317,21 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
+
+  '@vitest/browser@3.2.4':
+    resolution: {integrity: sha512-tJxiPrWmzH8a+w9nLKlQMzAKX/7VjFs50MWgcAj7p9XQ7AQ9/35fByFYptgPELyLw+0aixTnC4pUWV+APcZ/kw==}
+    peerDependencies:
+      playwright: '*'
+      safaridriver: '*'
+      vitest: 3.2.4
+      webdriverio: ^7.0.0 || ^8.0.0 || ^9.0.0
+    peerDependenciesMeta:
+      playwright:
+        optional: true
+      safaridriver:
+        optional: true
+      webdriverio:
+        optional: true
 
   '@vitest/expect@3.2.4':
     resolution: {integrity: sha512-Io0yyORnB6sikFlt8QW5K7slY4OjqNX9jmJQ02QDda8lyM6B5oNgVWoSoKPac8/kgnCUzuHQKrSLtu/uOqqrig==}
@@ -2338,6 +2369,10 @@ packages:
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
 
+  mrmime@2.0.1:
+    resolution: {integrity: sha512-Y3wQdFg2Va6etvQ5I82yUhGdsKrcYox6p7FfL1LbK2J4V01F9TGlepTIhnK24t7koZibmg82KGglhA1XK5IsLQ==}
+    engines: {node: '>=10'}
+
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -2709,6 +2744,10 @@ packages:
   simple-swizzle@0.2.4:
     resolution: {integrity: sha512-nAu1WFPQSMNr2Zn9PGSZK9AGn4t/y97lEm+MXTtUDwfP0ksAIX4nO+6ruD9Jwut4C49SB1Ws+fbXsm/yScWOHw==}
 
+  sirv@3.0.2:
+    resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
+    engines: {node: '>=18'}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -2860,6 +2899,10 @@ packages:
   to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
+
+  totalist@3.0.1:
+    resolution: {integrity: sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ==}
+    engines: {node: '>=6'}
 
   tough-cookie@6.0.0:
     resolution: {integrity: sha512-kXuRi1mtaKMrsLUxz3sQYvVl37B0Ns6MzfrtV5DvJceE9bPyspOqk9xxv7XbZWcfLWbFmm997vl83qUWVJA64w==}
@@ -3162,6 +3205,8 @@ snapshots:
       throttleit: 2.1.0
     optionalDependencies:
       zod: 4.1.8
+
+  '@ai-sdk/test-server@1.0.0-beta.0': {}
 
   '@ai-sdk/ui-utils@1.2.11(zod@4.1.8)':
     dependencies:
@@ -3688,6 +3733,8 @@ snapshots:
 
   '@opentelemetry/api@1.9.0': {}
 
+  '@polka/url@1.0.0-next.29': {}
+
   '@rolldown/pluginutils@1.0.0-beta.34': {}
 
   '@rollup/plugin-commonjs@28.0.6(rollup@4.50.2)':
@@ -4124,6 +4171,23 @@ snapshots:
       vite: 7.1.5(@types/node@22.18.3)
     transitivePeerDependencies:
       - supports-color
+
+  '@vitest/browser@3.2.4(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2))(vite@7.1.5(@types/node@22.18.3))(vitest@3.2.4)':
+    dependencies:
+      '@testing-library/dom': 10.4.1
+      '@testing-library/user-event': 14.6.1(@testing-library/dom@10.4.1)
+      '@vitest/mocker': 3.2.4(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2))(vite@7.1.5(@types/node@22.18.3))
+      '@vitest/utils': 3.2.4
+      magic-string: 0.30.19
+      sirv: 3.0.2
+      tinyrainbow: 2.0.0
+      vitest: 3.2.4(@types/node@22.18.3)(@vitest/browser@3.2.4)(jsdom@27.0.0(postcss@8.5.6))(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2))
+      ws: 8.18.3
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
 
   '@vitest/expect@3.2.4':
     dependencies:
@@ -5351,6 +5415,8 @@ snapshots:
 
   minimist@1.2.8: {}
 
+  mrmime@2.0.1: {}
+
   ms@2.1.3: {}
 
   msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2):
@@ -5808,6 +5874,12 @@ snapshots:
       is-arrayish: 0.3.4
     optional: true
 
+  sirv@3.0.2:
+    dependencies:
+      '@polka/url': 1.0.0-next.29
+      mrmime: 2.0.1
+      totalist: 3.0.1
+
   source-map-js@1.2.1: {}
 
   source-map@0.6.1: {}
@@ -5959,6 +6031,8 @@ snapshots:
     dependencies:
       is-number: 7.0.0
 
+  totalist@3.0.1: {}
+
   tough-cookie@6.0.0:
     dependencies:
       tldts: 7.0.14
@@ -6101,7 +6175,7 @@ snapshots:
       '@types/node': 22.18.3
       fsevents: 2.3.3
 
-  vitest@3.2.4(@types/node@22.18.3)(jsdom@27.0.0(postcss@8.5.6))(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2)):
+  vitest@3.2.4(@types/node@22.18.3)(@vitest/browser@3.2.4)(jsdom@27.0.0(postcss@8.5.6))(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2)):
     dependencies:
       '@types/chai': 5.2.2
       '@vitest/expect': 3.2.4
@@ -6128,6 +6202,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.18.3
+      '@vitest/browser': 3.2.4(msw@2.11.2(@types/node@22.18.3)(typescript@5.9.2))(vite@7.1.5(@types/node@22.18.3))(vitest@3.2.4)
       jsdom: 27.0.0(postcss@8.5.6)
     transitivePeerDependencies:
       - jiti
