@@ -1,0 +1,4 @@
+[submodule "jotai"]
+	path = jotai
+	url = https://github.com/pmndrs/jotai.git
+	branch = v3-use-atom-val
