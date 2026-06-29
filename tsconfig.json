@@ -25,7 +25,7 @@
     /**
      * Interop Constraints
      */
-    "downlevelIteration": true,
+    // "downlevelIteration": true, // Deprecated since TS 7.0
     "esModuleInterop": true,
     /**
      * Language and Environment
