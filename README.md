@@ -3,8 +3,7 @@
 [![Bundle size](https://img.shields.io/bundlephobia/minzip/jotai-ai?label=bundle%20size&style=flat&colorA=000000&colorB=000000)](https://bundlephobia.com/result?p=jotai-ai)
 [![Version](https://img.shields.io/npm/v/jotai-ai?style=flat&colorA=000000&colorB=000000)](https://www.npmjs.com/package/jotai-ai)
 
-[jotai-ai](https://github.com/himself65/jotai-ai) is a utility package compatible
-with [Vercel AI SDK](https://sdk.vercel.ai/docs).
+[jotai-ai](https://github.com/himself65/jotai-ai) is a utility package compatible with [Vercel AI SDK](https://sdk.vercel.ai/docs).
 
 ## install
 
@@ -206,9 +205,9 @@ const App = () => {
 };
 ```
 
-## makeChatAtoms
+## atomWithAIChat
 
-`makeChatAtoms` is a function that creates a set of atoms for a chatbot from `messagesAtom`.
+`atomWithAIChat` is a function that creates a set of atoms for a chatbot from `messagesAtom`.
 
 ```typescript
 import { generateId } from 'ai';
@@ -282,5 +281,3 @@ export const App = () => {
 ## LICENSE
 
 [MIT](LICENSE)
-
-[Vercel AI SDK]: https://sdk.vercel.ai/docs
