@@ -1,85 +1,66 @@
 import type { WritableAtom, Atom, Getter } from 'jotai';
-import type { UIMessage, AbstractChat, ChatInit, ChatStatus } from 'ai';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatStatus } from 'ai';
+import type { UIMessage, Chat, UseChatHelpers } from '@ai-sdk/react';
 
 import { atom } from 'jotai';
 
-// export interface AbstractReactChat<UI_MESSAGE extends UIMessage>
-//   extends Chat<UI_MESSAGE> {}
-
-export type AtomWithChatRead<UI_MESSAGE extends UIMessage> = (
+export type AtomWithChatInit<UI_MESSAGE extends UIMessage> = (
   get: Getter,
-) => AbstractChat<UI_MESSAGE>;
+) => Chat<UI_MESSAGE>;
 
-export type AtomWithChatInit<UI_MESSAGE extends UIMessage> = Omit<
-  ChatInit<UI_MESSAGE>,
-  'id' | 'messages'
->;
+type UseChatAtomOptions = {
+  // Sync rest props not belong to @type `Chat` and @type `ChatInit`
 
-type JotaiChatHelpers<UI_MESSAGE extends UIMessage> = Omit<
-  UseChatHelpers<UI_MESSAGE>,
   /**
-   * Function to update the messages state locally without triggering an API call.
-   * Useful for optimistic updates.
-   *
-   * TODO: Not implemented yet
+   * Custom throttle wait in ms for the chat messages and data updates.
+   * Default is undefined, which disables throttling.
    */
-  'setMessages'
-> & {
-  lastMessage: UI_MESSAGE | undefined;
+  throttleWaitMs?: number;
+  /**
+   * Whether to resume an ongoing chat generation stream.
+   */
+  resume?: boolean;
 };
 
 export type ChatAtom<UI_MESSAGE extends UIMessage> = Atom<
-  JotaiChatHelpers<UI_MESSAGE>
+  Chat<UI_MESSAGE> & UseChatAtomOptions
 >;
 
 export type AtomWithChatResult<UI_MESSAGE extends UIMessage> = {
   idAtom: Atom<string>;
   statusAtom: Atom<ChatStatus>;
   errorAtom: WritableAtom<Error | undefined, never, void>;
-  messagesAtom: Atom<UI_MESSAGE[]>;
+  messagesAtom: WritableAtom<UI_MESSAGE[], UI_MESSAGE[][], void>;
   lastMessageAtom: Atom<UI_MESSAGE | undefined>;
   chatAtom: ChatAtom<UI_MESSAGE>;
 };
 
 export function atomWithChat<UI_MESSAGE extends UIMessage>(
-  read: AtomWithChatRead<UIMessage>,
+  read: AtomWithChatInit<UI_MESSAGE>,
+  options?: UseChatAtomOptions | undefined,
 ): AtomWithChatResult<UI_MESSAGE> {
-  const statusAtom = atom<ChatStatus>(get => read(get).status);
-  const idAtom = atom<string>(get => read(get).id);
-  const errorAtom = atom<Error | undefined, never, void>(
-    get => read(get).error,
-    (get, set) => {
-      const chat = read(get);
-      return chat.clearError();
+  const throttleWaitMs = options?.throttleWaitMs;
+  const resume = options?.resume ?? false;
+
+  // chatAtom holds the raw Chat instance so useChat can subscribe reactively
+  const chatAtom: ChatAtom<UI_MESSAGE> = atom(get =>
+    Object.assign(read(get), { throttleWaitMs, resume }),
+  );
+
+  const idAtom = atom<string>(get => get(chatAtom).id);
+  const statusAtom = atom<ChatStatus>(get => get(chatAtom).status);
+  const errorAtom = atom<Error | undefined, void[], void>(
+    get => get(chatAtom).error,
+    (get, _set) => get(chatAtom).clearError(),
+  );
+  const messagesAtom = atom<UI_MESSAGE[], UI_MESSAGE[][], void>(
+    get => get(chatAtom).messages,
+    (get, _set, msgs: UI_MESSAGE[]) => {
+      get(chatAtom).messages = msgs;
     },
   );
-  const lastMessageAtom = atom<UI_MESSAGE | undefined>(
-    get => read(get).lastMessage,
-  );
-  const messagesAtom = atom<UI_MESSAGE[]>(get => read(get).messages);
-
-  const chatAtom = atom<JotaiChatHelpers<UI_MESSAGE>>(get => {
-    const chat = read(get);
-
-    // return {
-    //   // state
-    //   id: chat.id,
-    //   status: chat.status,
-    //   error: chat.error,
-    //   messages: chat.messages,
-    //   lastMessage: chat.lastMessage,
-
-    //   // handlers
-    //   sendMessage: chat.sendMessage,
-    //   regenerate: chat.regenerate,
-    //   stop: chat.stop,
-    //   clearError: chat.clearError,
-    //   resumeStream: chat.resumeStream,
-    //   addToolResult: chat.addToolResult,
-    // };
-
-    return chat;
+  const lastMessageAtom = atom<UI_MESSAGE | undefined>(get => {
+    get(chatAtom).lastMessage;
   });
 
   return {
