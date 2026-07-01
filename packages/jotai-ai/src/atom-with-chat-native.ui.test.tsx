@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { cleanup, render } from '@testing-library/react';
 
-import { act, useRef, useState } from 'react';
+import { act, useRef, useState, useEffect } from 'react';
 import {
   DefaultChatTransport,
   isToolUIPart,
@@ -29,11 +29,17 @@ import {
   TestResponseController,
 } from '@ai-sdk/test-server/with-vitest';
 
-import { atom, Provider, createStore, useAtom, useSetAtom } from '../jotai';
-import { useHydrateAtoms } from '../jotai/utils';
+import {
+  atom,
+  Provider,
+  createStore,
+  useAtom,
+  useSetAtom,
+  useAtomValue,
+} from './jotai';
+import { useHydrateAtoms } from './jotai/utils';
 
-import { useChatAtomValue } from './use-chat-atom';
-import { atomWithChat } from '../atom-with-chat';
+import { atomWithChat } from './atom-with-chat-native';
 
 //
 // Setup utils
@@ -85,7 +91,7 @@ describe('initial messages', () => {
     renderCount = 0;
   });
 
-  const chatAtom = atomWithChat(() => {
+  const { messagesAtom, idAtom, statusAtom } = atomWithChat(() => {
     return new Chat<UIMessage>({
       id: `first-id-${mockId()()}`,
       messages: [
@@ -97,7 +103,9 @@ describe('initial messages', () => {
   setupTestComponent(
     () => {
       renderCount++;
-      const { messages, status, id: idKey } = useChatAtomValue(chatAtom);
+      const { messages } = useAtomValue(messagesAtom);
+      const id = useAtomValue(idAtom);
+      const status = useAtomValue(statusAtom);
 
       if (renderCount > 10) {
         throw new Error('Excessive renders detected; likely an infinite loop!');
@@ -105,7 +113,7 @@ describe('initial messages', () => {
       return (
         <div>
           <div data-testid="render-count">{renderCount}</div>
-          <div data-testid="id">{idKey}</div>
+          <div data-testid="id">{id}</div>
           <div data-testid="status">{status.toString()}</div>
           <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
         </div>
@@ -138,7 +146,7 @@ describe('data protocol stream', () => {
   let onFinishCalls: Array<{ message: UIMessage }> = [];
 
   const idAtom = atom('first-id');
-  const chatAtom = atomWithChat(get => {
+  const { errorAtom, statusAtom, messagesAtom } = atomWithChat(get => {
     return new Chat<UIMessage>({
       id: get(idAtom),
       onFinish: options => {
@@ -152,13 +160,14 @@ describe('data protocol stream', () => {
     ({ id: idParam }: { id: string }) => {
       useHydrateAtoms([[idAtom, idParam]]);
 
-      const [idKey, setId] = useAtom(idAtom);
-      const { messages, sendMessage, error, status } =
-        useChatAtomValue(chatAtom);
+      const [id, setId] = useAtom(idAtom);
+      const { messages, sendMessage } = useAtomValue(messagesAtom);
+      const status = useAtomValue(statusAtom);
+      const { error, clearError } = useAtomValue(errorAtom);
 
       return (
         <div>
-          <div data-testid="id">{idKey}</div>
+          <div data-testid="id">{id}</div>
           <div data-testid="status">{status.toString()}</div>
           {error && <div data-testid="error">{error.toString()}</div>}
           <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
@@ -460,7 +469,7 @@ describe('data protocol stream', () => {
 describe('text stream', () => {
   let onFinishCalls: Array<{ message: UIMessage }> = [];
 
-  const chatAtom = atomWithChat(() => {
+  const { messagesAtom } = atomWithChat(() => {
     return new Chat<UIMessage>({
       onFinish: options => {
         onFinishCalls.push(options);
@@ -473,7 +482,7 @@ describe('text stream', () => {
   });
 
   setupTestComponent(() => {
-    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage, setMessages } = useAtomValue(messagesAtom);
 
     return (
       <div>
@@ -622,7 +631,7 @@ describe('text stream', () => {
 describe('prepareChatRequest', () => {
   let options: any;
 
-  const chatAtom = atomWithChat(
+  const { messagesAtom, statusAtom } = atomWithChat(
     () =>
       new Chat<UIMessage>({
         transport: new DefaultChatTransport({
@@ -641,7 +650,8 @@ describe('prepareChatRequest', () => {
   );
 
   setupTestComponent(() => {
-    const { messages, sendMessage, status } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage } = useAtomValue(messagesAtom);
+    const status = useAtomValue(statusAtom);
 
     return (
       <div>
@@ -750,7 +760,7 @@ describe('prepareChatRequest', () => {
 });
 
 describe('tool invocations', () => {
-  const chatAtom = atomWithChat(
+  const { messagesAtom } = atomWithChat(
     () =>
       new Chat<UIMessage>({
         generateId: mockId(),
@@ -758,7 +768,7 @@ describe('tool invocations', () => {
   );
 
   setupTestComponent(() => {
-    const { messages, sendMessage, addToolOutput } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage, addToolOutput } = useAtomValue(messagesAtom);
 
     return (
       <div>
@@ -1065,12 +1075,13 @@ describe('tool invocations', () => {
 });
 
 describe('file attachments with data url', () => {
-  const chatAtom = atomWithChat(
+  const { messagesAtom, statusAtom } = atomWithChat(
     () => new Chat<UIMessage>({ generateId: mockId() }),
   );
 
   setupTestComponent(() => {
-    const { messages, status, sendMessage } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage } = useAtomValue(messagesAtom);
+    const status = useAtomValue(statusAtom);
 
     const [files, setFiles] = useState<FileList | undefined>(undefined);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1297,12 +1308,13 @@ describe('file attachments with data url', () => {
 });
 
 describe('file attachments with url', () => {
-  const chatAtom = atomWithChat(
+  const { messagesAtom, statusAtom } = atomWithChat(
     () => new Chat<UIMessage>({ generateId: mockId() }),
   );
 
   setupTestComponent(() => {
-    const { messages, sendMessage, status } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage } = useAtomValue(messagesAtom);
+    const status = useAtomValue(statusAtom);
 
     const [input, setInput] = useState('');
 
@@ -1422,12 +1434,12 @@ describe('file attachments with url', () => {
 });
 
 describe('attachments with empty submit', () => {
-  const chatAtom = atomWithChat(
+  const { messagesAtom } = atomWithChat(
     () => new Chat<UIMessage>({ generateId: mockId() }),
   );
 
   setupTestComponent(() => {
-    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage } = useAtomValue(messagesAtom);
 
     return (
       <div>
@@ -1527,12 +1539,12 @@ describe('attachments with empty submit', () => {
 });
 
 describe('should send message with attachments', () => {
-  const chatAtom = atomWithChat(
+  const { messagesAtom } = atomWithChat(
     () => new Chat<UIMessage>({ generateId: mockId() }),
   );
 
   setupTestComponent(() => {
-    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage } = useAtomValue(messagesAtom);
 
     return (
       <div>
@@ -1643,12 +1655,12 @@ describe('should send message with attachments', () => {
 });
 
 describe('regenerate', () => {
-  const chatAtom = atomWithChat(
+  const { messagesAtom } = atomWithChat(
     () => new Chat<UIMessage>({ generateId: mockId() }),
   );
 
   setupTestComponent(() => {
-    const { messages, sendMessage, regenerate } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage, regenerate } = useAtomValue(messagesAtom);
 
     return (
       <div>
@@ -1754,7 +1766,7 @@ describe('regenerate', () => {
 describe('test sending additional fields during message submission', () => {
   type Message = UIMessage<{ test: string }>;
 
-  const chatAtom = atomWithChat(
+  const { messagesAtom } = atomWithChat(
     () =>
       new Chat<Message>({
         generateId: mockId(),
@@ -1762,7 +1774,7 @@ describe('test sending additional fields during message submission', () => {
   );
 
   setupTestComponent(() => {
-    const { messages, sendMessage } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage } = useAtomValue(messagesAtom);
 
     return (
       <div>
@@ -1836,7 +1848,7 @@ describe('test sending additional fields during message submission', () => {
 describe('resume ongoing stream and return assistant message', () => {
   const controller = new TestResponseController();
 
-  const chatAtom = atomWithChat(
+  const { messagesAtom, statusAtom } = atomWithChat(
     () =>
       new Chat<UIMessage>({
         id: '123',
@@ -1849,14 +1861,16 @@ describe('resume ongoing stream and return assistant message', () => {
         ],
         generateId: mockId(),
       }),
-    {
-      resume: true,
-    },
   );
 
   setupTestComponent(
     () => {
-      const { messages, status } = useChatAtomValue(chatAtom);
+      const { messages, resumeStream } = useAtomValue(messagesAtom);
+      const status = useAtomValue(statusAtom);
+
+      useEffect(() => {
+        resumeStream();
+      }, []);
 
       return (
         <div>
@@ -1931,14 +1945,15 @@ describe('resume ongoing stream and return assistant message', () => {
 
 // FIXME: Why is test time quite long (~343ms, normally 12ms) here?
 describe('stop', () => {
-  const chatAtom = atomWithChat(() => {
+  const { messagesAtom, statusAtom } = atomWithChat(() => {
     return new Chat<UIMessage>({
       generateId: mockId(),
     });
   });
 
   setupTestComponent(() => {
-    const { messages, sendMessage, stop, status } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage, stop } = useAtomValue(messagesAtom);
+    const status = useAtomValue(statusAtom);
 
     return (
       <div>
@@ -2010,12 +2025,16 @@ describe('stop', () => {
 describe('experimental_throttle', () => {
   const throttleMs = 50;
 
-  const chatAtom = atomWithChat(() => new Chat<UIMessage>({}), {
-    throttleWaitMs: throttleMs,
-  });
+  const { messagesAtom, statusAtom } = atomWithChat(
+    () => new Chat<UIMessage>({}),
+    {
+      throttleWaitMs: throttleMs,
+    },
+  );
 
   setupTestComponent(() => {
-    const { messages, sendMessage, status } = useChatAtomValue(chatAtom);
+    const { messages, sendMessage } = useAtomValue(messagesAtom);
+    const status = useAtomValue(statusAtom);
 
     return (
       <div>
@@ -2088,7 +2107,7 @@ describe('experimental_throttle', () => {
 
 describe('id changes', () => {
   const idAtom = atom<string>('initial-id');
-  const chatAtom = atomWithChat(get => {
+  const { messagesAtom, errorAtom, statusAtom } = atomWithChat(get => {
     return new Chat<UIMessage>({
       id: get(idAtom),
       generateId: mockId(),
@@ -2098,17 +2117,14 @@ describe('id changes', () => {
   setupTestComponent(
     () => {
       const setId = useSetAtom(idAtom);
-      const {
-        messages,
-        sendMessage,
-        error,
-        status,
-        id: idKey,
-      } = useChatAtomValue(chatAtom);
+      const { messages, sendMessage } = useAtomValue(messagesAtom);
+      const id = useAtomValue(idAtom);
+      const { error } = useAtomValue(errorAtom);
+      const status = useAtomValue(statusAtom);
 
       return (
         <div>
-          <div data-testid="id">{idKey}</div>
+          <div data-testid="id">{id}</div>
           <div data-testid="status">{status.toString()}</div>
           {error && <div data-testid="error">{error.toString()}</div>}
           <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
@@ -2177,23 +2193,22 @@ describe('chat instance changes', () => {
     }),
   );
 
-  const chatAtom = atomWithChat(get => get(chatInstAtom));
+  const { messagesAtom, errorAtom, statusAtom, idAtom } = atomWithChat(get =>
+    get(chatInstAtom),
+  );
 
   setupTestComponent(
     () => {
       const setChat = useSetAtom(chatInstAtom);
 
-      const {
-        messages,
-        sendMessage,
-        error,
-        status,
-        id: idKey,
-      } = useChatAtomValue(chatAtom);
+      const id = useAtomValue(idAtom);
+      const { messages, sendMessage } = useAtomValue(messagesAtom);
+      const { error } = useAtomValue(errorAtom);
+      const status = useAtomValue(statusAtom);
 
       return (
         <div>
-          <div data-testid="id">{idKey}</div>
+          <div data-testid="id">{id}</div>
           <div data-testid="status">{status.toString()}</div>
           {error && <div data-testid="error">{error.toString()}</div>}
           <div data-testid="messages">{JSON.stringify(messages, null, 2)}</div>
@@ -2256,7 +2271,7 @@ describe('chat instance changes', () => {
 
 describe('streaming with id change from undefined to defined', () => {
   const idAtom = atom<string | undefined>(undefined);
-  const chatAtom = atomWithChat(get => {
+  const { messagesAtom, statusAtom } = atomWithChat(get => {
     return new Chat<UIMessage>({
       id: get(idAtom),
       generateId: mockId(),
@@ -2266,7 +2281,8 @@ describe('streaming with id change from undefined to defined', () => {
   setupTestComponent(
     () => {
       const [id, setId] = useAtom(idAtom);
-      const { messages, sendMessage, status } = useChatAtomValue(chatAtom);
+      const { messages, sendMessage } = useAtomValue(messagesAtom);
+      const status = useAtomValue(statusAtom);
 
       return (
         <div>

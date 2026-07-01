@@ -3,6 +3,7 @@ import type { ChatAtom } from '../atom-with-chat';
 
 import { useCallback } from 'react';
 import { useSyncExternalStore, useEffect } from 'react';
+
 import { useAtomValue } from '../jotai';
 
 export type JotaiChatHelpers<UI_MESSAGE extends UIMessage> = Omit<
@@ -19,8 +20,8 @@ export function useChatAtomValue<UI_MESSAGE extends UIMessage>(
   // useCallback ensures we re-subscribe when the chat instance changes
   // (e.g. when the user's read function returns a new Chat due to id change).
   const subscribeToMessages = useCallback(
-    (cb: () => void) =>
-      chat['~registerMessagesCallback'](cb, chat.throttleWaitMs),
+    (update: () => void) =>
+      chat['~registerMessagesCallback'](update, chat.throttleWaitMs),
     [chat],
   );
 
@@ -44,7 +45,7 @@ export function useChatAtomValue<UI_MESSAGE extends UIMessage>(
 
   useEffect(() => {
     if (chat.resume) chat.resumeStream();
-  }, [chat]);
+  }, [chat.resume, chat.id]);
 
   return {
     id: chat.id,
