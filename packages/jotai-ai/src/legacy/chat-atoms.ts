@@ -61,9 +61,7 @@ export function chatAtoms(
     ) => ReturnType<Required<UseChatOptions>['onToolCall']>;
     // if you pass async function or promise, you will need a suspense boundary
     initialMessages?:
-      | Message[]
-      | Promise<Message[]>
-      | (() => Message[] | Promise<Message[]>);
+      Message[] | Promise<Message[]> | (() => Message[] | Promise<Message[]>);
   } = {},
 ) {
   const api = chatOptions.api || '/api/chat';
