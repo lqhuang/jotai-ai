@@ -28,8 +28,9 @@ import {
   createTestServer,
   TestResponseController,
 } from '@ai-sdk/test-server/with-vitest';
-import { atom, Provider, createStore, useAtom, useSetAtom } from 'jotai';
-import { useHydrateAtoms } from 'jotai/utils';
+
+import { atom, Provider, createStore, useAtom, useSetAtom } from '../jotai';
+import { useHydrateAtoms } from '../jotai/utils';
 
 import { useChatAtomValue } from './use-chat-atom';
 import { atomWithChat } from '../atom-with-chat';

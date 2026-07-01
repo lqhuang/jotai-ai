@@ -1,8 +1,8 @@
-import type { WritableAtom, Atom, Getter } from 'jotai';
+import type { WritableAtom, Atom, Getter } from './jotai';
 import type { ChatStatus } from 'ai';
 import type { UIMessage, Chat, UseChatHelpers } from '@ai-sdk/react';
 
-import { atom } from 'jotai';
+import { atom } from './jotai';
 
 export type AtomWithChatInit<UI_MESSAGE extends UIMessage> = (
   get: Getter,

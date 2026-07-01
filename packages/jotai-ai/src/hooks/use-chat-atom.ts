@@ -3,7 +3,7 @@ import type { ChatAtom } from '../atom-with-chat';
 
 import { useCallback } from 'react';
 import { useSyncExternalStore, useEffect } from 'react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue } from '../jotai';
 
 export type JotaiChatHelpers<UI_MESSAGE extends UIMessage> = Omit<
   UseChatHelpers<UI_MESSAGE>,
